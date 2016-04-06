@@ -22,6 +22,7 @@ object KazeClass {
     private val methods = clazz.getDeclaredMethods
         .filterNot(skip)
         .filterNot(_.getName.contains("$"))
+        .sortBy(_.getName)
 
     def render = {
       val sb = new StringBuilder(s"${indent}final class $name private(\n")
@@ -67,11 +68,24 @@ object KazeClass {
         mType = theType(m)
       } sb.append(s"$indent$mName = $mName,\n")
       sb.delete(sb.length - 2 , sb.length)
-      sb.append(")\n")
-
-      sb.append("}\n") // end class
+      sb.append(")\n\n")
 
       // toString
+      indent = "  "
+      sb.append(s"${indent}override def toString =\n")
+      indent += " " * 2
+      sb.append(s"""${indent}s\"\"\"${name}(""")
+      for {
+        m <- methods
+        mName = m.getName
+        mType = theType(m)
+      } sb.append("${" + mName + "},")
+      sb.delete(sb.length - 1 , sb.length)
+      sb.append(s""")\"\"\")""".stripMargin)
+      sb.append("\n")
+
+
+      sb.append("}\n") // end class
 
       // companion object
       indent = "  "

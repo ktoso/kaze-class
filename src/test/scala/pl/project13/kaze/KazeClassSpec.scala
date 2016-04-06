@@ -10,27 +10,30 @@ class KazeClassSpec extends WordSpec with Matchers {
 
       val expected =
         """|final class Person private(
-           |  name: class java.lang.String,
+           |  age: Int,
            |  items: scala.collection.immutable.List[pl.project13.kaze.Item],
-           |  age: Int) {
+           |  name: class java.lang.String) {
            |
-           |  def withName(value: class java.lang.String): Person = copy(name = value)
-           |  def withItems(value: scala.collection.immutable.List[pl.project13.kaze.Item]): Person = copy(items = value)
            |  def withAge(value: Int): Person = copy(age = value)
+           |  def withItems(value: scala.collection.immutable.List[pl.project13.kaze.Item]): Person = copy(items = value)
+           |  def withName(value: class java.lang.String): Person = copy(name = value)
            |
            |  private def copy(
-           |    name: class java.lang.String = name,
+           |    age: Int = age,
            |    items: scala.collection.immutable.List[pl.project13.kaze.Item] = items,
-           |    age: Int = age): Person = new Person(
-           |      name = name,
+           |    name: class java.lang.String = name): Person = new Person(
+           |      age = age,
            |      items = items,
-           |      age = age)
+           |      name = name)
+           |
+           |  override def toString =
+           |    s```Person(${age},${items},${name})```)
            |}
            |object Person {
            |  def apply() = new Person()
            |  /** Java API */
            |  def getInstance() = apply()
-           |}""".stripMargin.split("\n")
+           |}""".stripMargin.replaceAll("```", "\"\"\"").split("\n")
 
       info("Rendered: \n" + rendered)
 
