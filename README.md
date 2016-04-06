@@ -27,7 +27,7 @@ val rendered: String = KazeClass.of[Person].render
 
 to get a "desugared" case class, ready to replace your case class.
 
-Here is an [example output](src/test/scala/pl/projectt13/kaze/KazeClassSpec.scala).
+Here is an [example output](src/test/scala/pl/project13/kaze/KazeClassSpec.scala).
 
 Goals / Non-Goals
 =================

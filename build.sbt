@@ -9,3 +9,8 @@ scalaVersion := "2.11.7"
 val AkkaVersion = "2.4.0"
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.5" % "test"
+
+initialCommands :=
+  """|
+     |import pl.project13.kaze.KazeClass
+     |""".stripMargin
