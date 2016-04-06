@@ -1,0 +1,23 @@
+# Use Docker-based container (instead of OpenVZ)
+sudo: false
+
+cache:
+  directories:
+  - $HOME/.ivy2
+  - $HOME/.sbt/boot
+  - $HOME/.sbt/launchers
+
+language: scala
+
+jdk:
+  - oraclejdk8
+
+env:
+  - SCALA_VERSION=2.11.8
+
+script:
+  - sbt -J-XX:ReservedCodeCacheSize=256M ++$SCALA_VERSION test
+
+  # Tricks to avoid unnecessary cache updates
+  - find $HOME/.sbt -name "*.lock" | xargs rm
+  - find $HOME/.ivy2 -name "ivydata-*.properties" | xargs rm
