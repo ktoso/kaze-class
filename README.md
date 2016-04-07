@@ -21,7 +21,7 @@ which reminded me of how we wanted to swiftly, and unhindered–like the wind–
 Usage
 =====
 
-Get the jar or copy paste the KazeClass into your project, then call:
+Get the jar or [copy&paste the KazeClass](https://raw.githubusercontent.com/ktoso/kaze-class/master/src/main/scala/pl/project13/kaze/KazeClass.scala) into your project, then call:
 
 ```scala
 val rendered: String = KazeClass.of[Person].render
