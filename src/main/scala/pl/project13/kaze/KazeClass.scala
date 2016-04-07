@@ -80,7 +80,7 @@ object KazeClass {
         mType = theType(m)
       } sb.append("${" + mName + "},")
       sb.delete(sb.length - 1 , sb.length)
-      sb.append(s""")\"\"\")""".stripMargin)
+      sb.append(s""")\"\"\"""".stripMargin)
       sb.append("\n")
 
 

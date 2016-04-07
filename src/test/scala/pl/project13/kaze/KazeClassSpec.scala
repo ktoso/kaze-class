@@ -27,7 +27,7 @@ class KazeClassSpec extends WordSpec with Matchers {
            |      name = name)
            |
            |  override def toString =
-           |    s```Person(${age},${items},${name})```)
+           |    s```Person(${age},${items},${name})```
            |}
            |object Person {
            |  def apply() = new Person()
