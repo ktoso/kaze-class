@@ -1,8 +1,7 @@
 package pl.project13.kaze
 
-import scala.reflect.ClassTag
-
 object KazeClass {
+  import scala.reflect.ClassTag
 
   def of[T](implicit tag: ClassTag[T]) =
     new MkKazeClazz(tag.runtimeClass)
