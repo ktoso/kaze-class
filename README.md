@@ -1,6 +1,8 @@
 Kaze Class
 ==========
 
+[![Build Status](https://travis-ci.org/ktoso/kaze-class.svg?branch=master)](https://travis-ci.org/ktoso/kaze-class)
+
 Yet another "like case class but easier to evolve in binary compatible way" source code generator.
 
 **Specific use case:** when configuration objects where prototyped during experimental phase of a project 
