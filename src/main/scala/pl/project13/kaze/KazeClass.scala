@@ -33,7 +33,7 @@ object KazeClass {
         m <- methods
         mName = m.getName
         mType = theType(m)
-      } sb.append(s"$indent$mName: $mType,\n")
+      } sb.append(s"${indent}val $mName: $mType,\n")
       sb.delete(sb.length - 2 , sb.length)
       sb.append(") {\n")
       sb.append("\n")
@@ -101,6 +101,7 @@ object KazeClass {
       val raw = m.getGenericReturnType.toString.replaceAll("<", "[").replaceAll(">", "]")
       raw match {
         case "boolean" | "int" | "long" | "byte" | "short" | "double" | "float" => up(raw)
+        case name if name.startsWith("class ") => name.replaceAll("class ", "")
         case _ => raw
       }
     }
