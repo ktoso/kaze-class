@@ -55,8 +55,14 @@ object KazeClass {
         if (mType.startsWith("Option[")) {
           val mTypeWithoutOpt = mType.substring("Option[".length, mType.length - 1)
           sb.append(s"${indent}def with${up(mName)}(value: $mTypeWithoutOpt): $clazzName = copy($mName = Option(value))\n")
-        } else
+        } else {
           sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
+        }
+
+        if (mType == "scala.concurrent.duration.FiniteDuration")
+          sb.append(s"${indent}def with${up(mName)}(value: java.time.Duration): $clazzName =\n" +
+            s"${indent}  with${up(mName)}(scala.concurrent.duration.FiniteDuration.create(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))\n")
+
       }
 
       sb.append("\n")
