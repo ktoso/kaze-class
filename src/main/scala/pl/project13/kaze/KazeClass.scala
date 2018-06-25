@@ -38,22 +38,26 @@ object KazeClass {
 
       // constructor
 
-      for {
-        m <- fields
-        mName = m.getName
-        mType = theType(m)
-      } sb.append(s"${indent}val $mName: $mType,\n")
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        sb.append(s"${indent}val $mName: $mType,\n")
+      }
       sb.delete(sb.length - 2 , sb.length)
       sb.append(") {\n")
       sb.append("\n")
 
       // with...
 
-      for {
-        m <- fields
-        mName = m.getName
-        mType = theType(m)
-      } sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        if (mType.startsWith("Option[")) {
+          val mTypeWithoutOpt = mType.substring("Option[".length, mType.length - 1)
+          sb.append(s"${indent}def with${up(mName)}(value: $mTypeWithoutOpt): $clazzName = copy($mName = Option(value))\n")
+        } else
+          sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
+      }
 
       sb.append("\n")
 
@@ -87,7 +91,7 @@ object KazeClass {
         m <- fields
         mName = m.getName
         mType = theType(m)
-      } sb.append("${" + mName + "},")
+      } sb.append("$" + mName + ",")
       sb.delete(sb.length - 1 , sb.length)
       sb.append(s""")\"\"\"""".stripMargin)
       sb.append("\n")

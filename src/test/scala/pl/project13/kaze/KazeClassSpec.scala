@@ -13,25 +13,29 @@ class KazeClassSpec extends WordSpec with Matchers {
            |  val name: String,
            |  val age: Int,
            |  val item: Item,
-           |  val items: List[Item]) {
+           |  val items: List[Item],
+           |  val opt: Option[String]) {
            |
            |  def withName(value: String): Person = copy(name = value)
            |  def withAge(value: Int): Person = copy(age = value)
            |  def withItem(value: Item): Person = copy(item = value)
            |  def withItems(value: List[Item]): Person = copy(items = value)
+           |  def withOpt(value: String): Person = copy(opt = Option(value))
            |
            |  private def copy(
            |    name: String = name,
            |    age: Int = age,
            |    item: Item = item,
-           |    items: List[Item] = items): Person = new Person(
+           |    items: List[Item] = items,
+           |    opt: Option[String] = opt): Person = new Person(
            |      name = name,
            |      age = age,
            |      item = item,
-           |      items = items)
+           |      items = items,
+           |      opt = opt)
            |
            |  override def toString =
-           |    s```Person(${name},${age},${item},${items})```
+           |    s```Person($name,$age,$item,$items,$opt)```
            |}
            |object Person {
            |  /** Scala API */
@@ -49,6 +53,6 @@ class KazeClassSpec extends WordSpec with Matchers {
   }
 }
 
-case class Person(name: String, age: Int, item: Item, items: List[Item])
+case class Person(name: String, age: Int, item: Item, items: List[Item], opt: Option[String])
 
 class Item
