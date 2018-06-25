@@ -1,5 +1,7 @@
 package pl.project13.kaze
 
+
+
 object KazeClass {
   import scala.reflect.ClassTag
 
@@ -7,7 +9,7 @@ object KazeClass {
     new MkKazeClazz(tag.runtimeClass)
 
   class MkKazeClazz(clazz: Class[_]) {
-    import java.lang.reflect.Method
+    import java.lang.reflect.Field
 
     private var indent = ""
 
@@ -18,10 +20,10 @@ object KazeClass {
       "canEqual", "equals", "toString", "hashCode", "copy",
       "productIterator", "productPrefix", "productArity", "productElement"
     )
-    private val methods = clazz.getDeclaredMethods
+
+    private val fields = clazz.getDeclaredFields
         .filterNot(skip)
         .filterNot(_.getName.contains("$"))
-        .sortBy(_.getName)
 
     def render = {
       val sb = new StringBuilder(s"${indent}final class $name private(\n")
@@ -30,7 +32,7 @@ object KazeClass {
       // constructor
 
       for {
-        m <- methods
+        m <- fields
         mName = m.getName
         mType = theType(m)
       } sb.append(s"${indent}val $mName: $mType,\n")
@@ -41,7 +43,7 @@ object KazeClass {
       // with...
 
       for {
-        m <- methods
+        m <- fields
         mName = m.getName
         mType = theType(m)
       } sb.append(s"${indent}def with${up(mName)}(value: $mType): $name = copy($mName = value)\n")
@@ -53,7 +55,7 @@ object KazeClass {
       sb.append(s"${indent}private def copy(\n")
       indent += "  "
       for {
-        m <- methods
+        m <- fields
         mName = m.getName
         mType = theType(m)
       } sb.append(s"$indent$mName: $mType = $mName,\n")
@@ -62,7 +64,7 @@ object KazeClass {
 
       indent += "  "
       for {
-        m <- methods
+        m <- fields
         mName = m.getName
         mType = theType(m)
       } sb.append(s"$indent$mName = $mName,\n")
@@ -75,7 +77,7 @@ object KazeClass {
       indent += " " * 2
       sb.append(s"""${indent}s\"\"\"${name}(""")
       for {
-        m <- methods
+        m <- fields
         mName = m.getName
         mType = theType(m)
       } sb.append("${" + mName + "},")
@@ -89,6 +91,7 @@ object KazeClass {
       // companion object
       indent = "  "
       sb.append(s"object $name {\n")
+      sb.append(s"${indent}/** Scala API */\n")
       sb.append(s"${indent}def apply() = new $name()\n")
       sb.append(s"${indent}/** Java API */\n")
       sb.append(s"${indent}def getInstance() = apply()\n")
@@ -97,8 +100,8 @@ object KazeClass {
       sb.result()
     }
 
-    private def theType(m: Method): String = {
-      val raw = m.getGenericReturnType.toString.replaceAll("<", "[").replaceAll(">", "]")
+    private def theType(m: Field): String = {
+      val raw = m.getGenericType.toString.replaceAll("<", "[").replaceAll(">", "]")
       raw match {
         case "boolean" | "int" | "long" | "byte" | "short" | "double" | "float" => up(raw)
         case name if name.startsWith("class ") => name.replaceAll("class ", "")
@@ -106,7 +109,7 @@ object KazeClass {
       }
     }
 
-    private def skip(m: Method) = skipThose(m.getName)
+    private def skip(m: Field) = skipThose(m.getName)
 
     private def simpleName(clazz: Class[_]): String = {
       val n = clazz.getName

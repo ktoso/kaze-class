@@ -10,26 +10,27 @@ class KazeClassSpec extends WordSpec with Matchers {
 
       val expected =
         """|final class Person private(
+           |  val name: java.lang.String,
            |  val age: Int,
-           |  val items: scala.collection.immutable.List[pl.project13.kaze.Item],
-           |  val name: java.lang.String) {
+           |  val items: scala.collection.immutable.List[pl.project13.kaze.Item]) {
            |
+           |  def withName(value: java.lang.String): Person = copy(name = value)
            |  def withAge(value: Int): Person = copy(age = value)
            |  def withItems(value: scala.collection.immutable.List[pl.project13.kaze.Item]): Person = copy(items = value)
-           |  def withName(value: java.lang.String): Person = copy(name = value)
            |
            |  private def copy(
+           |    name: java.lang.String = name,
            |    age: Int = age,
-           |    items: scala.collection.immutable.List[pl.project13.kaze.Item] = items,
-           |    name: java.lang.String = name): Person = new Person(
+           |    items: scala.collection.immutable.List[pl.project13.kaze.Item] = items): Person = new Person(
+           |      name = name,
            |      age = age,
-           |      items = items,
-           |      name = name)
+           |      items = items)
            |
            |  override def toString =
-           |    s```Person(${age},${items},${name})```
+           |    s```Person(${name},${age},${items})```
            |}
            |object Person {
+           |  /** Scala API */
            |  def apply() = new Person()
            |  /** Java API */
            |  def getInstance() = apply()
