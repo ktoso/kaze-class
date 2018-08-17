@@ -17,16 +17,35 @@ class KazeClassSpec extends WordSpec with Matchers {
            |  val item: Item,
            |  val items: List[Item],
            |  val opt: Option[String],
-           |  val timeout: scala.concurrent.duration.FiniteDuration) {
+           |  val timeout: scala.concurrent.duration.FiniteDuration)
+           |extends pl.project13.kaze.Extendable {
+           |
+           |  /** Java API */
+           |  def getName: String = name
+           |  /** Java API */
+           |  def getAge: Int = age
+           |  /** Java API */
+           |  def getItem: Item = item
+           |  /** Java API */
+           |  def getItems: java.util.List[Item] = items.asJava
+           |  /** Java API */
+           |  def getOpt: java.util.Optional[String] = opt.asJava
+           |  /** Java API */
+           |  def getTimeout: java.time.Duration = timeout.asJava
            |
            |  def withName(value: String): Person = copy(name = value)
            |  def withAge(value: Int): Person = copy(age = value)
            |  def withItem(value: Item): Person = copy(item = value)
-           |  def withItems(value: List[Item]): Person = copy(items = value)
+           |  /** Scala API */
+           |  def withItems(values: List[Item]): Person = copy(items = values)
+           |  /** Java API */
+           |  def withItems(values: java.util.List[Item]): Person = copy(items = values.asScala.toList)
            |  def withOpt(value: String): Person = copy(opt = Option(value))
+           |  /** Scala API */
            |  def withTimeout(value: scala.concurrent.duration.FiniteDuration): Person = copy(timeout = value)
+           |  /** Java API */
            |  def withTimeout(value: java.time.Duration): Person =
-           |    withTimeout(scala.concurrent.duration.FiniteDuration.create(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))
+           |    withTimeout(scala.concurrent.duration.FiniteDuration(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))
            |
            |  private def copy(
            |    name: String = name,
@@ -43,13 +62,66 @@ class KazeClassSpec extends WordSpec with Matchers {
            |      timeout = timeout)
            |
            |  override def toString =
-           |    s```Person($name,$age,$item,$items,$opt,$timeout)```
+           |    s```Person(name=$name,age=$age,item=$item,items=$items,opt=$opt,timeout=$timeout)```
+           |
+           |  override def equals(other: Any): Boolean = other match {
+           |    case that: Person =>
+           |      java.util.Objects.equals(this.name, that.name) &&
+           |      java.util.Objects.equals(this.age, that.age) &&
+           |      java.util.Objects.equals(this.item, that.item) &&
+           |      java.util.Objects.equals(this.items, that.items) &&
+           |      java.util.Objects.equals(this.opt, that.opt) &&
+           |      java.util.Objects.equals(this.timeout, that.timeout)
+           |        case _ => false
+           |  }
+           |
+           |  override def hashCode(): Int =
+           |    java.util.Objects.hash(
+           |      name,
+           |      Int.box(age),
+           |      item,
+           |      items,
+           |      opt,
+           |      timeout)
            |}
            |object Person {
            |  /** Scala API */
-           |  def apply() = new Person()
+           |  def apply(): Person = new Person()
            |  /** Java API */
-           |  def getInstance() = apply()
+           |  def getInstance(): Person = apply()
+           |  /** Scala API */
+           |  def apply(
+           |    name: String,
+           |    age: Int,
+           |    item: Item,
+           |    items: List[Item],
+           |    opt: Option[String],
+           |    timeout: scala.concurrent.duration.FiniteDuration
+           |  ): Person = new Person(
+           |    name,
+           |    age,
+           |    item,
+           |    items,
+           |    opt,
+           |    timeout
+           |  )
+           |
+           |  /** Java API */
+           |  def create(
+           |    name: String,
+           |    age: Int,
+           |    item: Item,
+           |    items: java.util.List[Item],
+           |    opt: java.util.Optional[String],
+           |    timeout: java.time.Duration
+           |  ): Person = new Person(
+           |    name,
+           |    age,
+           |    item,
+           |    items.asScala.toList,
+           |    opt.asScala,
+           |    timeout.asScala
+           |  )
            |}""".stripMargin.replaceAll("```", "\"\"\"").split("\n")
 
       info("Rendered: \n" + rendered)
@@ -63,6 +135,9 @@ class KazeClassSpec extends WordSpec with Matchers {
   }
 }
 
-case class Person(name: String, age: Int, item: Item, items: List[Item], opt: Option[String], timeout: FiniteDuration)
+trait Extendable
+
+case class Person(name: String, age: Int, item: Item, items: List[Item], opt: Option[String], timeout: FiniteDuration) extends Extendable
 
 class Item
+
