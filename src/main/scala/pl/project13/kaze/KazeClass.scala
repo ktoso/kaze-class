@@ -4,12 +4,14 @@ import scala.annotation.tailrec
 import scala.collection.immutable
 
 object KazeClass {
+
   import scala.reflect.ClassTag
 
   def of[T](implicit tag: ClassTag[T]) =
     new MkKazeClazz(tag.runtimeClass)
 
   class MkKazeClazz(clazz: Class[_]) {
+
     import java.lang.reflect.Field
 
     private var indent = ""
@@ -29,46 +31,109 @@ object KazeClass {
       classOf[immutable.Seq[_]].getName, classOf[Map[_, _]].getName)
 
     private val fields = clazz.getDeclaredFields
-        .filterNot(skip)
-        .filterNot(_.getName.contains("$"))
+      .filterNot(skip)
+      .filterNot(_.getName.contains("$"))
 
     def render = {
       val sb = new StringBuilder(s"${indent}final class $clazzName private(\n")
       indent = "  "
 
-      // constructor
+      renderConstructor(sb)
 
+      sb.append("{\n\n")
+
+      renderJavaAccessors(sb)
+
+      sb.append("\n")
+
+      renderWithXyz(sb)
+      sb.append("\n")
+      renderCopy(sb)
+      sb.append("\n")
+      renderToString(sb)
+      sb.append("\n")
+      renderEquals(sb)
+      sb.append("\n")
+      renderHashCode(sb)
+
+      sb.append("}\n") // end class
+
+      // companion object
+      indent = "  "
+      sb.append(s"object $clazzName {\n")
+      sb.append(s"${indent}/** Scala API */\n")
+      sb.append(s"${indent}def apply(): $clazzName = new $clazzName()\n")
+
+      sb.append(s"${indent}/** Java API */\n")
+      sb.append(s"${indent}def getInstance(): $clazzName = apply()\n")
+
+      renderObjectApply(sb)
+      renderObjectCreate(sb)
+
+      sb.append("}\n")
+
+      sb.result()
+    }
+
+    private def renderConstructor(sb: StringBuilder): Unit = {
+      val skipExtends = Set("java.lang.Object", "scala.Product", "scala.Serializable")
       fields.foreach { m =>
         val mName = m.getName
         val mType = theType(m)
         sb.append(s"${indent}val $mName: $mType,\n")
       }
-      sb.delete(sb.length - 2 , sb.length)
-      sb.append(") {\n")
-      sb.append("\n")
+      sb.delete(sb.length - 2, sb.length)
+      sb.append(")")
+      val extending = (Seq(clazz.getSuperclass.getName) ++ clazz.getInterfaces.map(_.getName))
+        .filterNot(skipExtends.contains)
+      if (extending.nonEmpty) sb.append(extending.mkString("\nextends ", "\nwith ", " "))
+    }
 
-      // with...
+    private def renderJavaAccessors(sb: StringBuilder): Unit = {
+      fields.foreach { m =>
+        sb.append(s"${indent}/** Java API */\n")
+        val mName = m.getName
+        val mType = theType(m)
+        if (mType.startsWith("Option[")) {
+          val mTypeWithoutOpt = mType.replace("Option", "java.util.Optional")
+          sb.append(s"${indent}def get${up(mName)}: $mTypeWithoutOpt = $mName.asJava\n")
+        } else if (mType.startsWith("List[")) {
+          val mTypeWithoutOpt = mType.replace("List", "java.util.List")
+          sb.append(s"${indent}def get${up(mName)}: $mTypeWithoutOpt = $mName.asJava\n")
+        } else if (mType == "scala.concurrent.duration.FiniteDuration") {
+          sb.append(s"${indent}def get${up(mName)}: java.time.Duration = $mName.asJava\n")
+        } else {
+          sb.append(s"${indent}def get${up(mName)}: $mType = $mName\n")
+        }
+      }
+    }
 
+    private def renderWithXyz(sb: StringBuilder): Unit = {
       fields.foreach { m =>
         val mName = m.getName
         val mType = theType(m)
         if (mType.startsWith("Option[")) {
           val mTypeWithoutOpt = mType.substring("Option[".length, mType.length - 1)
           sb.append(s"${indent}def with${up(mName)}(value: $mTypeWithoutOpt): $clazzName = copy($mName = Option(value))\n")
+        } else if (mType.startsWith("List[")) {
+          val mTypeWithoutOpt = mType.substring("List[".length, mType.length - 1)
+          appendScalaApi(sb, indent)
+          sb.append(s"${indent}def with${up(mName)}(values: List[$mTypeWithoutOpt]): $clazzName = copy($mName = values)\n")
+          appendJavaApi(sb, indent)
+          sb.append(s"${indent}def with${up(mName)}(values: java.util.List[$mTypeWithoutOpt]): $clazzName = copy($mName = values.asScala.toList)\n")
+        } else if (mType == "scala.concurrent.duration.FiniteDuration") {
+          appendScalaApi(sb, indent)
+          sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
+          appendJavaApi(sb, indent)
+          sb.append(s"${indent}def with${up(mName)}(value: java.time.Duration): $clazzName =\n" +
+            s"${indent}  with${up(mName)}(scala.concurrent.duration.FiniteDuration(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))\n")
         } else {
           sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
         }
-
-        if (mType == "scala.concurrent.duration.FiniteDuration")
-          sb.append(s"${indent}def with${up(mName)}(value: java.time.Duration): $clazzName =\n" +
-            s"${indent}  with${up(mName)}(scala.concurrent.duration.FiniteDuration.create(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))\n")
-
       }
+    }
 
-      sb.append("\n")
-
-      // copy method
-
+    private def renderCopy(sb: StringBuilder): Unit = {
       sb.append(s"${indent}private def copy(\n")
       indent += "  "
       for {
@@ -76,7 +141,7 @@ object KazeClass {
         mName = m.getName
         mType = theType(m)
       } sb.append(s"$indent$mName: $mType = $mName,\n")
-      sb.delete(sb.length - 2 , sb.length)
+      sb.delete(sb.length - 2, sb.length)
       sb.append(s"): $clazzName = ").append(s"new $clazzName(\n")
 
       indent += "  "
@@ -85,10 +150,11 @@ object KazeClass {
         mName = m.getName
         mType = theType(m)
       } sb.append(s"$indent$mName = $mName,\n")
-      sb.delete(sb.length - 2 , sb.length)
-      sb.append(")\n\n")
+      sb.delete(sb.length - 2, sb.length)
+      sb.append(")\n")
+    }
 
-      // toString
+    private def renderToString(sb: StringBuilder): Unit = {
       indent = "  "
       sb.append(s"${indent}override def toString =\n")
       indent += " " * 2
@@ -97,25 +163,110 @@ object KazeClass {
         m <- fields
         mName = m.getName
         mType = theType(m)
-      } sb.append("$" + mName + ",")
-      sb.delete(sb.length - 1 , sb.length)
-      sb.append(s""")\"\"\"""".stripMargin)
+      } sb.append(s"$mName=$$$mName,")
+      sb.delete(sb.length - 1, sb.length)
+      sb.append(s""")\"\"\"""")
       sb.append("\n")
-
-
-      sb.append("}\n") // end class
-
-      // companion object
-      indent = "  "
-      sb.append(s"object $clazzName {\n")
-      sb.append(s"${indent}/** Scala API */\n")
-      sb.append(s"${indent}def apply() = new $clazzName()\n")
-      sb.append(s"${indent}/** Java API */\n")
-      sb.append(s"${indent}def getInstance() = apply()\n")
-      sb.append("}\n")
-
-      sb.result()
     }
+
+    private def renderEquals(sb: StringBuilder): Unit = {
+      indent = "  "
+      sb.append(s"${indent}override def equals(other: Any): Boolean = other match {\n")
+      sb.append(s"${indent}  case that: ${clazzName} =>\n")
+      indent += "    "
+      for {
+        m <- fields
+        mName = m.getName
+      } sb.append(s"${indent}java.util.Objects.equals(this.$mName, that.$mName) &&\n")
+      sb.delete(sb.length - 4, sb.length)
+      sb.append("\n")
+      sb.append(s"${indent}  case _ => false\n")
+      sb.append("  }\n")
+    }
+
+    private def renderHashCode(sb: StringBuilder): Unit = {
+      val box = Set("int", "long")
+      val wrapper = Map("int" -> "Int.box", "long" -> "Long.box")
+
+      indent = "  "
+      sb.append(s"${indent}override def hashCode(): Int =\n")
+      sb.append(s"${indent}  java.util.Objects.hash(\n")
+      indent += "    "
+      for {
+        m <- fields
+        mName = m.getName
+      }
+        if (box.contains(m.getType.getName)) {
+          sb.append(s"${indent}${wrapper(m.getType.getName)}($mName),\n")
+        } else sb.append(s"${indent}$mName,\n")
+      sb.delete(sb.length - 2, sb.length)
+      sb.append(")\n")
+    }
+
+    private def renderObjectApply(sb: StringBuilder): Unit = {
+      // Scala: all fields apply method
+      appendScalaApi(sb, indent)
+      sb.append(s"${indent}def apply(\n")
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        sb.append(s"${indent}  $mName: $mType,\n")
+      }
+      sb.delete(sb.length - 2, sb.length)
+      sb.append("\n")
+      sb.append(s"$indent): $clazzName = new $clazzName(\n")
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        sb.append(s"${indent}  $mName,\n")
+      }
+      sb.delete(sb.length - 2, sb.length)
+      sb.append("\n")
+      sb.append(s"${indent})\n")
+      sb.append("\n")
+    }
+
+    private def renderObjectCreate(sb: StringBuilder): Unit = {
+      // Java: all fields create method
+      appendJavaApi(sb, indent)
+      sb.append(s"${indent}def create(\n")
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        val jType = if (mType.startsWith("Option[")) {
+          mType.replace("Option", "java.util.Optional")
+        } else if (mType.startsWith("List[")) {
+          mType.replace("List", "java.util.List")
+        } else if (mType == "scala.concurrent.duration.FiniteDuration")
+          "java.time.Duration"
+        else mType
+
+        sb.append(s"${indent}  $mName: $jType,\n")
+      }
+      sb.delete(sb.length - 2, sb.length)
+      sb.append("\n")
+      sb.append(s"$indent): $clazzName = new $clazzName(\n")
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        if (mType.startsWith("List[")) {
+          sb.append(s"${indent}  $mName.asScala.toList,\n")
+        } else if (mType.startsWith("Option[") ||
+          mType == "scala.concurrent.duration.FiniteDuration") {
+          sb.append(s"${indent}  $mName.asScala,\n")
+        } else
+          sb.append(s"${indent}  $mName,\n")
+      }
+      sb.delete(sb.length - 2, sb.length)
+      sb.append("\n")
+      sb.append(s"${indent})\n")
+    }
+
+    private def appendScalaApi(sb: StringBuilder, indent: String): Unit =
+      sb.append(s"${indent}/** Scala API */\n")
+
+    private def appendJavaApi(sb: StringBuilder, indent: String): Unit =
+      sb.append(s"${indent}/** Java API */\n")
 
     private def theType(m: Field): String = {
       val raw = m.getGenericType.toString.replaceAll("<", "[").replaceAll(">", "]")
@@ -133,7 +284,7 @@ object KazeClass {
         case pkg :: tail =>
           if (name.startsWith(pkg) && name.charAt(pkg.length).isUpper) name.drop(pkg.length)
           else removePkg(name, tail)
-        }
+      }
 
       @tailrec def removeClass(name: String, remaining: List[String]): String = remaining match {
         case Nil => name
