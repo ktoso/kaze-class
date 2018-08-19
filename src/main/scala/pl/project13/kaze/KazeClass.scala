@@ -28,7 +28,11 @@ object KazeClass {
     private val knownPackages = List("java.lang.", "scala.", clazz.getPackage.getName + ".")
     // full class name not needed for these classes
     private val knownClasses = List(classOf[List[_]].getName, classOf[Set[_]].getName, classOf[IndexedSeq[_]].getName,
-      classOf[immutable.Seq[_]].getName, classOf[Map[_, _]].getName)
+      classOf[Map[_, _]].getName)
+    private val immutableSeq = "scala.collection.immutable.Seq["
+    private val immutableSeqShort = "immutable.Seq["
+
+    private val scalaDuration = "scala.concurrent.duration.FiniteDuration"
 
     private val fields = clazz.getDeclaredFields
       .filterNot(skip)
@@ -94,14 +98,11 @@ object KazeClass {
         sb.append(s"${indent}/** Java API */\n")
         val mName = m.getName
         val mType = theType(m)
-        if (mType.startsWith("Option[")) {
-          val mTypeWithoutOpt = mType.replace("Option", "java.util.Optional")
-          sb.append(s"${indent}def get${up(mName)}: $mTypeWithoutOpt = $mName.asJava\n")
-        } else if (mType.startsWith("List[")) {
-          val mTypeWithoutOpt = mType.replace("List", "java.util.List")
-          sb.append(s"${indent}def get${up(mName)}: $mTypeWithoutOpt = $mName.asJava\n")
-        } else if (mType == "scala.concurrent.duration.FiniteDuration") {
-          sb.append(s"${indent}def get${up(mName)}: java.time.Duration = $mName.asJava\n")
+        if (mType.startsWith("Option[")
+          || mType.startsWith("List[")
+          || mType.startsWith(immutableSeqShort)
+          || mType == scalaDuration) {
+          sb.append(s"${indent}def get${up(mName)}: ${theJavaType(mType)} = $mName.asJava\n")
         } else {
           sb.append(s"${indent}def get${up(mName)}: $mType = $mName\n")
         }
@@ -112,21 +113,26 @@ object KazeClass {
       fields.foreach { m =>
         val mName = m.getName
         val mType = theType(m)
+        val jType = theJavaType(mType)
         if (mType.startsWith("Option[")) {
           val mTypeWithoutOpt = mType.substring("Option[".length, mType.length - 1)
           sb.append(s"${indent}def with${up(mName)}(value: $mTypeWithoutOpt): $clazzName = copy($mName = Option(value))\n")
         } else if (mType.startsWith("List[")) {
-          val mTypeWithoutOpt = mType.substring("List[".length, mType.length - 1)
           appendScalaApi(sb, indent)
-          sb.append(s"${indent}def with${up(mName)}(values: List[$mTypeWithoutOpt]): $clazzName = copy($mName = values)\n")
+          sb.append(s"${indent}def with${up(mName)}(values: $mType): $clazzName = copy($mName = values)\n")
           appendJavaApi(sb, indent)
-          sb.append(s"${indent}def with${up(mName)}(values: java.util.List[$mTypeWithoutOpt]): $clazzName = copy($mName = values.asScala.toList)\n")
-        } else if (mType == "scala.concurrent.duration.FiniteDuration") {
+          sb.append(s"${indent}def with${up(mName)}(values: $jType): $clazzName = copy($mName = values.asScala.toList)\n")
+        } else if (mType.startsWith(immutableSeqShort)) {
+          appendScalaApi(sb, indent)
+          sb.append(s"${indent}def with${up(mName)}(values: $mType): $clazzName = copy($mName = values)\n")
+          appendJavaApi(sb, indent)
+          sb.append(s"${indent}def with${up(mName)}(values: $jType): $clazzName = copy($mName = values.asScala.toList)\n")
+        } else if (mType == scalaDuration) {
           appendScalaApi(sb, indent)
           sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
           appendJavaApi(sb, indent)
-          sb.append(s"${indent}def with${up(mName)}(value: java.time.Duration): $clazzName =\n" +
-            s"${indent}  with${up(mName)}(scala.concurrent.duration.FiniteDuration(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))\n")
+          sb.append(s"${indent}def with${up(mName)}(value: $jType): $clazzName =\n" +
+            s"${indent}  with${up(mName)}($scalaDuration(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))\n")
         } else {
           sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
         }
@@ -148,7 +154,6 @@ object KazeClass {
       for {
         m <- fields
         mName = m.getName
-        mType = theType(m)
       } sb.append(s"$indent$mName = $mName,\n")
       sb.delete(sb.length - 2, sb.length)
       sb.append(")\n")
@@ -162,7 +167,6 @@ object KazeClass {
       for {
         m <- fields
         mName = m.getName
-        mType = theType(m)
       } sb.append(s"$mName=$$$mName,")
       sb.delete(sb.length - 1, sb.length)
       sb.append(s""")\"\"\"""")
@@ -233,13 +237,7 @@ object KazeClass {
       fields.foreach { m =>
         val mName = m.getName
         val mType = theType(m)
-        val jType = if (mType.startsWith("Option[")) {
-          mType.replace("Option", "java.util.Optional")
-        } else if (mType.startsWith("List[")) {
-          mType.replace("List", "java.util.List")
-        } else if (mType == "scala.concurrent.duration.FiniteDuration")
-          "java.time.Duration"
-        else mType
+        val jType = theJavaType(mType)
 
         sb.append(s"${indent}  $mName: $jType,\n")
       }
@@ -249,10 +247,9 @@ object KazeClass {
       fields.foreach { m =>
         val mName = m.getName
         val mType = theType(m)
-        if (mType.startsWith("List[")) {
+        if (mType.startsWith("List[") || mType.startsWith(immutableSeqShort)) {
           sb.append(s"${indent}  $mName.asScala.toList,\n")
-        } else if (mType.startsWith("Option[") ||
-          mType == "scala.concurrent.duration.FiniteDuration") {
+        } else if (mType.startsWith("Option[") || mType == scalaDuration) {
           sb.append(s"${indent}  $mName.asScala,\n")
         } else
           sb.append(s"${indent}  $mName,\n")
@@ -277,6 +274,17 @@ object KazeClass {
       }
     }
 
+    private def theJavaType(mType: String): String =
+      if (mType.startsWith("Option[")) {
+        mType.replace("Option", "java.util.Optional")
+      } else if (mType.startsWith("List[")) {
+        mType.replace("List", "java.util.List")
+      } else if (mType.startsWith(immutableSeqShort)) {
+        mType.replace(immutableSeqShort, "java.util.List[")
+      } else if (mType == scalaDuration)
+        "java.time.Duration"
+      else mType
+
     private def removeKnownPackages(clsName: String): String = {
 
       @tailrec def removePkg(name: String, remaining: List[String]): String = remaining match {
@@ -285,6 +293,10 @@ object KazeClass {
           if (name.startsWith(pkg) && name.charAt(pkg.length).isUpper) name.drop(pkg.length)
           else removePkg(name, tail)
       }
+
+      def removePackageFromClass(name: String): String =
+        if (name.startsWith(immutableSeq)) "immutable.Seq[" + name.drop(immutableSeq.length)
+        else removeClass(name, knownClasses)
 
       @tailrec def removeClass(name: String, remaining: List[String]): String = remaining match {
         case Nil => name
@@ -301,7 +313,7 @@ object KazeClass {
         } else clsName
 
       val clsName3 = removePkg(clsName2, knownPackages)
-      removeClass(clsName3, knownClasses)
+      removePackageFromClass(clsName3)
     }
 
     private def skip(m: Field) = skipThose(m.getName)

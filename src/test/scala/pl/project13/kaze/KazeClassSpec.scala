@@ -1,6 +1,7 @@
 package pl.project13.kaze
 
 import scala.concurrent.duration.FiniteDuration
+import scala.collection.immutable
 
 import org.scalatest.{Matchers, WordSpec}
 
@@ -15,7 +16,8 @@ class KazeClassSpec extends WordSpec with Matchers {
            |  val name: String,
            |  val age: Int,
            |  val item: Item,
-           |  val items: List[Item],
+           |  val items: immutable.Seq[Item],
+           |  val list: List[Item],
            |  val opt: Option[String],
            |  val timeout: scala.concurrent.duration.FiniteDuration)
            |extends pl.project13.kaze.Extendable {
@@ -29,6 +31,8 @@ class KazeClassSpec extends WordSpec with Matchers {
            |  /** Java API */
            |  def getItems: java.util.List[Item] = items.asJava
            |  /** Java API */
+           |  def getList: java.util.List[Item] = list.asJava
+           |  /** Java API */
            |  def getOpt: java.util.Optional[String] = opt.asJava
            |  /** Java API */
            |  def getTimeout: java.time.Duration = timeout.asJava
@@ -37,9 +41,13 @@ class KazeClassSpec extends WordSpec with Matchers {
            |  def withAge(value: Int): Person = copy(age = value)
            |  def withItem(value: Item): Person = copy(item = value)
            |  /** Scala API */
-           |  def withItems(values: List[Item]): Person = copy(items = values)
+           |  def withItems(values: immutable.Seq[Item]): Person = copy(items = values)
            |  /** Java API */
            |  def withItems(values: java.util.List[Item]): Person = copy(items = values.asScala.toList)
+           |  /** Scala API */
+           |  def withList(values: List[Item]): Person = copy(list = values)
+           |  /** Java API */
+           |  def withList(values: java.util.List[Item]): Person = copy(list = values.asScala.toList)
            |  def withOpt(value: String): Person = copy(opt = Option(value))
            |  /** Scala API */
            |  def withTimeout(value: scala.concurrent.duration.FiniteDuration): Person = copy(timeout = value)
@@ -51,18 +59,20 @@ class KazeClassSpec extends WordSpec with Matchers {
            |    name: String = name,
            |    age: Int = age,
            |    item: Item = item,
-           |    items: List[Item] = items,
+           |    items: immutable.Seq[Item] = items,
+           |    list: List[Item] = list,
            |    opt: Option[String] = opt,
            |    timeout: scala.concurrent.duration.FiniteDuration = timeout): Person = new Person(
            |      name = name,
            |      age = age,
            |      item = item,
            |      items = items,
+           |      list = list,
            |      opt = opt,
            |      timeout = timeout)
            |
            |  override def toString =
-           |    s```Person(name=$name,age=$age,item=$item,items=$items,opt=$opt,timeout=$timeout)```
+           |    s```Person(name=$name,age=$age,item=$item,items=$items,list=$list,opt=$opt,timeout=$timeout)```
            |
            |  override def equals(other: Any): Boolean = other match {
            |    case that: Person =>
@@ -70,6 +80,7 @@ class KazeClassSpec extends WordSpec with Matchers {
            |      java.util.Objects.equals(this.age, that.age) &&
            |      java.util.Objects.equals(this.item, that.item) &&
            |      java.util.Objects.equals(this.items, that.items) &&
+           |      java.util.Objects.equals(this.list, that.list) &&
            |      java.util.Objects.equals(this.opt, that.opt) &&
            |      java.util.Objects.equals(this.timeout, that.timeout)
            |        case _ => false
@@ -81,6 +92,7 @@ class KazeClassSpec extends WordSpec with Matchers {
            |      Int.box(age),
            |      item,
            |      items,
+           |      list,
            |      opt,
            |      timeout)
            |}
@@ -94,7 +106,8 @@ class KazeClassSpec extends WordSpec with Matchers {
            |    name: String,
            |    age: Int,
            |    item: Item,
-           |    items: List[Item],
+           |    items: immutable.Seq[Item],
+           |    list: List[Item],
            |    opt: Option[String],
            |    timeout: scala.concurrent.duration.FiniteDuration
            |  ): Person = new Person(
@@ -102,6 +115,7 @@ class KazeClassSpec extends WordSpec with Matchers {
            |    age,
            |    item,
            |    items,
+           |    list,
            |    opt,
            |    timeout
            |  )
@@ -112,6 +126,7 @@ class KazeClassSpec extends WordSpec with Matchers {
            |    age: Int,
            |    item: Item,
            |    items: java.util.List[Item],
+           |    list: java.util.List[Item],
            |    opt: java.util.Optional[String],
            |    timeout: java.time.Duration
            |  ): Person = new Person(
@@ -119,6 +134,7 @@ class KazeClassSpec extends WordSpec with Matchers {
            |    age,
            |    item,
            |    items.asScala.toList,
+           |    list.asScala.toList,
            |    opt.asScala,
            |    timeout.asScala
            |  )
@@ -127,7 +143,7 @@ class KazeClassSpec extends WordSpec with Matchers {
       info("Rendered: \n" + rendered)
 
       rendered.split("\n").zipWithIndex.foreach { case (renderedLine, idx) =>
-        withClue(s"line=${idx+1}") {
+        withClue(s"line=${idx + 1}") {
           renderedLine should ===(expected(idx))
         }
       }
@@ -137,7 +153,11 @@ class KazeClassSpec extends WordSpec with Matchers {
 
 trait Extendable
 
-case class Person(name: String, age: Int, item: Item, items: List[Item], opt: Option[String], timeout: FiniteDuration) extends Extendable
+case class Person(name: String, age: Int, item: Item,
+                  items: immutable.Seq[Item],
+                  list: List[Item],
+                  opt: Option[String], timeout: FiniteDuration)
+  extends Extendable
 
 class Item
 
