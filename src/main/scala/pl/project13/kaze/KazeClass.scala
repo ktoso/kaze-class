@@ -69,7 +69,7 @@ object KazeClass {
       sb.append(s"${indent}def apply(): $clazzName = new $clazzName()\n")
 
       sb.append(s"${indent}/** Java API */\n")
-      sb.append(s"${indent}def getInstance(): $clazzName = apply()\n")
+      sb.append(s"${indent}def create(): $clazzName = apply()\n")
 
       renderObjectApply(sb)
       renderObjectCreate(sb)

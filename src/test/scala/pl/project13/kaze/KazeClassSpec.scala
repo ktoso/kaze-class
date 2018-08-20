@@ -100,7 +100,7 @@ class KazeClassSpec extends WordSpec with Matchers {
            |  /** Scala API */
            |  def apply(): Person = new Person()
            |  /** Java API */
-           |  def getInstance(): Person = apply()
+           |  def create(): Person = apply()
            |  /** Scala API */
            |  def apply(
            |    name: String,
