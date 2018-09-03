@@ -103,6 +103,8 @@ object KazeClass {
           || mType.startsWith(immutableSeqShort)
           || mType == scalaDuration) {
           sb.append(s"${indent}def get${up(mName)}: ${theJavaType(mType)} = $mName.asJava\n")
+        } else if (mType == "Boolean") {
+          sb.append(s"${indent}def is${up(mName)}: Boolean = $mName\n")
         } else {
           sb.append(s"${indent}def get${up(mName)}: $mType = $mName\n")
         }
@@ -133,6 +135,8 @@ object KazeClass {
           appendJavaApi(sb, indent)
           sb.append(s"${indent}def with${up(mName)}(value: $jType): $clazzName =\n" +
             s"${indent}  with${up(mName)}($scalaDuration(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))\n")
+        } else if (mType == "Boolean") {
+          sb.append(s"${indent}def with${up(mName)}(value: Boolean): $clazzName = if ($mName == value) this else copy($mName = value)\n")
         } else {
           sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
         }
@@ -189,8 +193,8 @@ object KazeClass {
     }
 
     private def renderHashCode(sb: StringBuilder): Unit = {
-      val box = Set("int", "long")
-      val wrapper = Map("int" -> "Int.box", "long" -> "Long.box")
+      val box = Set("int", "long", "boolean")
+      val wrapper = Map("int" -> "Int.box", "long" -> "Long.box", "boolean" -> "Boolean.box")
 
       indent = "  "
       sb.append(s"${indent}override def hashCode(): Int =\n")
