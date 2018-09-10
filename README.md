@@ -26,8 +26,24 @@ Get the jar or [copy&paste the KazeClass](https://raw.githubusercontent.com/ktos
 ```scala
 val rendered: String = KazeClass.of[Person].render
 ```
+or even (requires java.awt to be available...)
+```scala
+KazeClass.of[Person].toClipboard
+```
 
 to get a "desugared" case class, ready to replace your case class.
+
+You may configure what to generate with a few flags:
+
+```scala
+KazeClass.of[Person]
+  .withEqualsHashcode
+  .withConfig
+  .toClipboard
+```
+
+Use `withoutAkkaUtils` to generate conversion of `FiniteDuration` according to the [Java 8 compatibility lib](https://github.com/scala/scala-java8-compat#converters-between-scalaconcurrentdurationfiniteduration-and-javatimeduration).
+
 
 Here is an [example output](src/test/scala/pl/project13/kaze/KazeClassSpec.scala).
 

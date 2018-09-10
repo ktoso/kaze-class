@@ -10,7 +10,14 @@ object KazeClass {
   def of[T](implicit tag: ClassTag[T]) =
     new MkKazeClazz(tag.runtimeClass)
 
-  class MkKazeClazz(clazz: Class[_]) {
+  case class MkKazeClazz(clazz: Class[_], useAkkaUtils: Boolean = true, genEquals: Boolean = false, genConfig: Boolean = false) {
+
+    def withAkkaUtils: MkKazeClazz = this.copy(useAkkaUtils = true)
+    def withoutAkkaUtils: MkKazeClazz = this.copy(useAkkaUtils = false)
+
+    def withEqualsHashcode: MkKazeClazz = this.copy(genEquals = true)
+
+    def withConfig: MkKazeClazz = this.copy(genConfig = true)
 
     import java.lang.reflect.Field
 
@@ -38,8 +45,32 @@ object KazeClass {
       .filterNot(skip)
       .filterNot(_.getName.contains("$"))
 
-    def render = {
-      val sb = new StringBuilder(s"${indent}final class $clazzName private(\n")
+    def toClipboard(): Unit = {
+      import java.awt.Toolkit
+      import java.awt.datatransfer.StringSelection
+
+      val selection = new StringSelection(render)
+      Toolkit.getDefaultToolkit.getSystemClipboard.setContents(selection, selection)
+    }
+
+    def render: String = {
+      val sb = new StringBuilder(
+        s"""import scala.collection.immutable
+           |import scala.collection.JavaConverters._
+           |import scala.compat.java8.OptionConverters._
+           |""".stripMargin)
+      if (useAkkaUtils)
+        sb.append(
+          """import akka.util.JavaDurationConverters._
+            |""".stripMargin)
+      else
+        sb.append(
+          """import scala.compat.java8.DurationConverters
+            |""".stripMargin)
+
+      sb.append(
+        s"""
+           |${indent}final class $clazzName private(\n""".stripMargin)
       indent = "  "
 
       renderConstructor(sb)
@@ -55,12 +86,14 @@ object KazeClass {
       renderCopy(sb)
       sb.append("\n")
       renderToString(sb)
-      sb.append("\n")
-      renderEquals(sb)
-      sb.append("\n")
-      renderHashCode(sb)
+      if (genEquals) {
+        sb.append("\n")
+        renderEquals(sb)
+        sb.append("\n")
+        renderHashCode(sb)
+      }
 
-      sb.append("}\n") // end class
+      sb.append("}\n\n") // end class
 
       // companion object
       indent = "  "
@@ -70,6 +103,11 @@ object KazeClass {
 
       sb.append(s"${indent}/** Java API */\n")
       sb.append(s"${indent}def create(): $clazzName = apply()\n")
+
+      if (genConfig) {
+        renderFromConfig(sb)
+        renderSampleConfig(sb)
+      }
 
       renderObjectApply(sb)
       renderObjectCreate(sb)
@@ -87,10 +125,10 @@ object KazeClass {
         sb.append(s"${indent}val $mName: $mType,\n")
       }
       sb.delete(sb.length - 2, sb.length)
-      sb.append(")")
+      sb.append("\n) ")
       val extending = (Seq(clazz.getSuperclass.getName) ++ clazz.getInterfaces.map(_.getName))
         .filterNot(skipExtends.contains)
-      if (extending.nonEmpty) sb.append(extending.mkString("\nextends ", "\nwith ", " "))
+      if (extending.nonEmpty) sb.append(extending.mkString("extends ", "\nwith ", " "))
     }
 
     private def renderJavaAccessors(sb: StringBuilder): Unit = {
@@ -100,9 +138,10 @@ object KazeClass {
         val mType = theType(m)
         if (mType.startsWith("Option[")
           || mType.startsWith("List[")
-          || mType.startsWith(immutableSeqShort)
-          || mType == scalaDuration) {
+          || mType.startsWith(immutableSeqShort)) {
           sb.append(s"${indent}def get${up(mName)}: ${theJavaType(mType)} = $mName.asJava\n")
+        } else if (mType == scalaDuration) {
+          sb.append(s"${indent}def get${up(mName)}: ${theJavaType(mType)} = $mName.${if (useAkkaUtils) "as" else "to"}Java\n")
         } else if (mType == "Boolean") {
           sb.append(s"${indent}def is${up(mName)}: Boolean = $mName\n")
         } else {
@@ -133,8 +172,7 @@ object KazeClass {
           appendScalaApi(sb, indent)
           sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
           appendJavaApi(sb, indent)
-          sb.append(s"${indent}def with${up(mName)}(value: $jType): $clazzName =\n" +
-            s"${indent}  with${up(mName)}($scalaDuration(value.toMillis, java.util.concurrent.TimeUnit.MILLISECONDS))\n")
+          sb.append(s"${indent}def with${up(mName)}(value: $jType): $clazzName = copy($mName = value.${if (useAkkaUtils) "as" else "to"}Scala)\n")
         } else if (mType == "Boolean") {
           sb.append(s"${indent}def with${up(mName)}(value: Boolean): $clazzName = if ($mName == value) this else copy($mName = value)\n")
         } else {
@@ -152,15 +190,16 @@ object KazeClass {
         mType = theType(m)
       } sb.append(s"$indent$mName: $mType = $mName,\n")
       sb.delete(sb.length - 2, sb.length)
-      sb.append(s"): $clazzName = ").append(s"new $clazzName(\n")
-
-      indent += "  "
+      indent = indent.dropRight(2)
+      sb.append(s"\n$indent): $clazzName = ").append(s"new $clazzName(\n")
+      indent += "    "
       for {
         m <- fields
         mName = m.getName
       } sb.append(s"$indent$mName = $mName,\n")
       sb.delete(sb.length - 2, sb.length)
-      sb.append(")\n")
+      indent = indent.dropRight(2)
+      sb.append(s"\n$indent)\n")
     }
 
     private def renderToString(sb: StringBuilder): Unit = {
@@ -209,6 +248,77 @@ object KazeClass {
         } else sb.append(s"${indent}$mName,\n")
       sb.delete(sb.length - 2, sb.length)
       sb.append(")\n")
+    }
+
+    private def renderFromConfig(sb: StringBuilder): Unit = {
+      sb.append(s"${indent}/**\n")
+      sb.append(s"${indent} * Reads from the given config.\n")
+      sb.append(s"${indent} */\n")
+      sb.append(s"${indent}def apply(c: Config): $clazzName = {\n")
+      indent = indent + "  "
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        val jType = theJavaType(mType)
+        val cName = mName // TODO hyphenize?
+        if (mType == "Option[Int]") {
+          sb.append(s"""${indent}val $mName = if (c.hasPath("$cName")) Some(c.getInt("$cName")) else None\n""")
+        } else if (mType == "Option[String]") {
+          sb.append(s"""${indent}val $mName = if (c.hasPath("$cName")) Some(c.getString("${cName}")) else None\n""")
+        } else if (mType == s"Option[$scalaDuration]") {
+          sb.append(s"""${indent}val $mName = if (c.hasPath("$cName")) Some(c.getDuration("${cName}").${if (useAkkaUtils) "as" else "to"}Scala) else None\n""")
+        } else if (mType == "Int") {
+          sb.append(s"""${indent}val $mName = c.getInt("$cName")\n""")
+        } else if (mType == "String") {
+          sb.append(s"""${indent}val $mName = c.getString("$cName")\n""")
+        } else if (mType == scalaDuration) {
+          sb.append(s"""${indent}val $mName = c.getDuration("$cName").asScala\n""")
+        } else {
+          sb.append(s"""${indent}val $mName = c.get ("$cName")\n""")
+        }
+      }
+      sb.append(s"${indent}apply(\n")
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        sb.append(s"${indent}  $mName,\n")
+      }
+      sb.delete(sb.length - 2, sb.length)
+      sb.append(s"\n${indent})\n")
+      indent = indent.dropRight(2)
+      sb.append(s"${indent}}\n")
+      sb.append("\n")
+    }
+
+    private def renderSampleConfig(sb: StringBuilder): Unit = {
+      sb.append(s"${indent}/* sample config section\n")
+      sb.append(s"${indent}{\n")
+      indent = indent + "  "
+      fields.foreach { m =>
+        val mName = m.getName
+        val mType = theType(m)
+        val jType = theJavaType(mType)
+        val cName = mName
+        if (mType == "Option[Int]") {
+          sb.append(s"""${indent}$cName = 1234567 # optional\n""")
+        } else if (mType == "Option[String]") {
+          sb.append(s"""${indent}$cName = "some text" # optional\n""")
+        } else if (mType == s"Option[$scalaDuration]") {
+          sb.append(s"""${indent}$cName = 50 seconds # optional\n""")
+        } else if (mType == "Int") {
+          sb.append(s"""${indent}$cName = 1234567\n""")
+        } else if (mType == "String") {
+          sb.append(s"""${indent}$cName = "some text"\n""")
+        } else if (mType == scalaDuration) {
+          sb.append(s"""${indent}$cName = 50 seconds\n""")
+        } else {
+          sb.append(s"""${indent}$cName = ???\n""")
+        }
+      }
+      indent = indent.dropRight(2)
+      sb.append(s"${indent}}\n")
+      sb.append(s"${indent}*/\n")
+      sb.append("\n")
     }
 
     private def renderObjectApply(sb: StringBuilder): Unit = {
