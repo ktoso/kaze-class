@@ -10,7 +10,7 @@ object KazeClass {
   def of[T](implicit tag: ClassTag[T]) =
     new MkKazeClazz(tag.runtimeClass)
 
-  case class MkKazeClazz(clazz: Class[_], useAkkaUtils: Boolean = true, genEquals: Boolean = false, genConfig: Boolean = false) {
+  case class MkKazeClazz(clazz: Class[_], useAkkaUtils: Boolean = true, genEquals: Boolean = false, genConfig: Boolean = false, genJavaApi: Boolean = true) {
 
     def withAkkaUtils: MkKazeClazz = this.copy(useAkkaUtils = true)
     def withoutAkkaUtils: MkKazeClazz = this.copy(useAkkaUtils = false)
@@ -18,6 +18,8 @@ object KazeClass {
     def withEqualsHashcode: MkKazeClazz = this.copy(genEquals = true)
 
     def withConfig: MkKazeClazz = this.copy(genConfig = true)
+
+    def withoutJavaApi: MkKazeClazz = this.copy(genJavaApi = false)
 
     import java.lang.reflect.Field
 
@@ -56,18 +58,21 @@ object KazeClass {
     def render: String = {
       val sb = new StringBuilder(
         s"""import scala.collection.immutable
-           |import scala.collection.JavaConverters._
-           |import scala.compat.java8.OptionConverters._
            |""".stripMargin)
-      if (useAkkaUtils)
+      if (genJavaApi) {
         sb.append(
-          """import akka.util.JavaDurationConverters._
+          """import scala.collection.JavaConverters._
+            |import scala.compat.java8.OptionConverters._
             |""".stripMargin)
-      else
-        sb.append(
-          """import scala.compat.java8.DurationConverters
-            |""".stripMargin)
-
+        if (useAkkaUtils)
+          sb.append(
+            """import akka.util.JavaDurationConverters._
+              |""".stripMargin)
+        else
+          sb.append(
+            """import scala.compat.java8.DurationConverters
+              |""".stripMargin)
+      }
       sb.append(
         s"""
            |${indent}final class $clazzName private(\n""".stripMargin)
@@ -77,9 +82,11 @@ object KazeClass {
 
       sb.append("{\n\n")
 
-      renderJavaAccessors(sb)
+      if (genJavaApi) {
+        renderJavaAccessors(sb)
 
-      sb.append("\n")
+        sb.append("\n")
+      }
 
       renderWithXyz(sb)
       sb.append("\n")
@@ -101,8 +108,10 @@ object KazeClass {
       sb.append(s"${indent}/** Scala API */\n")
       sb.append(s"${indent}def apply(): $clazzName = new $clazzName()\n")
 
-      sb.append(s"${indent}/** Java API */\n")
-      sb.append(s"${indent}def create(): $clazzName = apply()\n")
+      if (genJavaApi) {
+        sb.append(s"${indent}/** Java API */\n")
+        sb.append(s"${indent}def create(): $clazzName = apply()\n")
+      }
 
       if (genConfig) {
         renderFromConfig(sb)
@@ -110,8 +119,9 @@ object KazeClass {
       }
 
       renderObjectApply(sb)
-      renderObjectCreate(sb)
-
+      if (genJavaApi) {
+        renderObjectCreate(sb)
+      }
       sb.append("}\n")
 
       sb.result()
@@ -161,18 +171,24 @@ object KazeClass {
         } else if (mType.startsWith("List[")) {
           appendScalaApi(sb, indent)
           sb.append(s"${indent}def with${up(mName)}(values: $mType): $clazzName = copy($mName = values)\n")
-          appendJavaApi(sb, indent)
-          sb.append(s"${indent}def with${up(mName)}(values: $jType): $clazzName = copy($mName = values.asScala.toList)\n")
+          if (genJavaApi) {
+            appendJavaApi(sb, indent)
+            sb.append(s"${indent}def with${up(mName)}(values: $jType): $clazzName = copy($mName = values.asScala.toList)\n")
+          }
         } else if (mType.startsWith(immutableSeqShort)) {
           appendScalaApi(sb, indent)
           sb.append(s"${indent}def with${up(mName)}(values: $mType): $clazzName = copy($mName = values)\n")
-          appendJavaApi(sb, indent)
-          sb.append(s"${indent}def with${up(mName)}(values: $jType): $clazzName = copy($mName = values.asScala.toList)\n")
+          if (genJavaApi) {
+            appendJavaApi(sb, indent)
+            sb.append(s"${indent}def with${up(mName)}(values: $jType): $clazzName = copy($mName = values.asScala.toList)\n")
+          }
         } else if (mType == scalaDuration) {
           appendScalaApi(sb, indent)
           sb.append(s"${indent}def with${up(mName)}(value: $mType): $clazzName = copy($mName = value)\n")
-          appendJavaApi(sb, indent)
-          sb.append(s"${indent}def with${up(mName)}(value: $jType): $clazzName = copy($mName = value.${if (useAkkaUtils) "as" else "to"}Scala)\n")
+          if (genJavaApi) {
+            appendJavaApi(sb, indent)
+            sb.append(s"${indent}def with${up(mName)}(value: $jType): $clazzName = copy($mName = value.${if (useAkkaUtils) "as" else "to"}Scala)\n")
+          }
         } else if (mType == "Boolean") {
           sb.append(s"${indent}def with${up(mName)}(value: Boolean): $clazzName = if ($mName == value) this else copy($mName = value)\n")
         } else {
@@ -273,6 +289,8 @@ object KazeClass {
           sb.append(s"""${indent}val $mName = c.getString("$cName")\n""")
         } else if (mType == scalaDuration) {
           sb.append(s"""${indent}val $mName = c.getDuration("$cName").asScala\n""")
+        } else if (mType == "Boolean") {
+          sb.append(s"""${indent}val $mName = c.getBoolean("$cName")\n""")
         } else {
           sb.append(s"""${indent}val $mName = c.get ("$cName")\n""")
         }
@@ -311,6 +329,8 @@ object KazeClass {
           sb.append(s"""${indent}$cName = "some text"\n""")
         } else if (mType == scalaDuration) {
           sb.append(s"""${indent}$cName = 50 seconds\n""")
+        } else if (mType == "Boolean") {
+          sb.append(s"""${indent}$cName = false\n""")
         } else {
           sb.append(s"""${indent}$cName = ???\n""")
         }
@@ -384,6 +404,7 @@ object KazeClass {
       raw match {
         case "boolean" | "int" | "long" | "byte" | "short" | "double" | "float" => up(raw)
         case name if name.startsWith("class ") => removeKnownPackages(name.replaceAll("class ", ""))
+        case name if name.startsWith("interface ") => removeKnownPackages(name.substring("interface ".length))
         case _ => removeKnownPackages(raw)
       }
     }
