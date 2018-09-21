@@ -170,6 +170,7 @@ class KazeClassSpec extends WordSpec with Matchers {
           |
           |final class Simple private(
           |  val number: Int,
+          |  val optionalNumber: Option[optionalNumberErasedType],
           |  val text: String,
           |  val timeout: scala.concurrent.duration.FiniteDuration,
           |  val flag: Boolean,
@@ -177,6 +178,7 @@ class KazeClassSpec extends WordSpec with Matchers {
           |) {
           |
           |  def withNumber(value: Int): Simple = copy(number = value)
+          |  def withOptionalNumber(value: optionalNumberErasedType): Simple = copy(optionalNumber = Option(value))
           |  def withText(value: String): Simple = copy(text = value)
           |  /** Scala API */
           |  def withTimeout(value: scala.concurrent.duration.FiniteDuration): Simple = copy(timeout = value)
@@ -185,12 +187,14 @@ class KazeClassSpec extends WordSpec with Matchers {
           |
           |  private def copy(
           |    number: Int = number,
+          |    optionalNumber: Option[optionalNumberErasedType] = optionalNumber,
           |    text: String = text,
           |    timeout: scala.concurrent.duration.FiniteDuration = timeout,
           |    flag: Boolean = flag,
           |    ext: Extendable = ext
           |  ): Simple = new Simple(
           |      number = number,
+          |      optionalNumber = optionalNumber,
           |      text = text,
           |      timeout = timeout,
           |      flag = flag,
@@ -198,7 +202,7 @@ class KazeClassSpec extends WordSpec with Matchers {
           |    )
           |
           |  override def toString =
-          |    s```Simple(number=$number,text=$text,timeout=$timeout,flag=$flag,ext=$ext)```
+          |    s```Simple(number=$number,optionalNumber=$optionalNumber,text=$text,timeout=$timeout,flag=$flag,ext=$ext)```
           |}
           |
           |object Simple {
@@ -209,12 +213,14 @@ class KazeClassSpec extends WordSpec with Matchers {
           |   */
           |  def apply(c: Config): Simple = {
           |    val number = c.getInt("number")
+          |    val optionalNumber = c.get ("optionalNumber")
           |    val text = c.getString("text")
           |    val timeout = c.getDuration("timeout").asScala
           |    val flag = c.getBoolean("flag")
           |    val ext = c.get ("ext")
           |    apply(
           |      number,
+          |      optionalNumber,
           |      text,
           |      timeout,
           |      flag,
@@ -225,6 +231,7 @@ class KazeClassSpec extends WordSpec with Matchers {
           |  /* sample config section
           |  {
           |    number = 1234567
+          |    optionalNumber = ???
           |    text = "some text"
           |    timeout = 50 seconds
           |    flag = false
@@ -235,12 +242,14 @@ class KazeClassSpec extends WordSpec with Matchers {
           |  /** Scala API */
           |  def apply(
           |    number: Int,
+          |    optionalNumber: Option[optionalNumberErasedType],
           |    text: String,
           |    timeout: scala.concurrent.duration.FiniteDuration,
           |    flag: Boolean,
           |    ext: Extendable
           |  ): Simple = new Simple(
           |    number,
+          |    optionalNumber,
           |    text,
           |    timeout,
           |    flag,
@@ -275,4 +284,4 @@ case class Person(name: String, age: Int, item: Item,
 
 class Item
 
-case class Simple(number: Int, text: String, timeout: FiniteDuration, flag: Boolean, ext: Extendable)
+case class Simple(number: Int, optionalNumber: Option[Int], text: String, timeout: FiniteDuration, flag: Boolean, ext: Extendable)

@@ -403,9 +403,9 @@ object KazeClass {
       val raw = m.getGenericType.toString.replaceAll("<", "[").replaceAll(">", "]")
       raw match {
         case "boolean" | "int" | "long" | "byte" | "short" | "double" | "float" => up(raw)
-        case name if name.startsWith("class ") => removeKnownPackages(name.replaceAll("class ", ""))
-        case name if name.startsWith("interface ") => removeKnownPackages(name.substring("interface ".length))
-        case _ => removeKnownPackages(raw)
+        case name if name.startsWith("class ") => removeKnownPackages(m.getName(), name.replaceAll("class ", ""))
+        case name if name.startsWith("interface ") => removeKnownPackages(m.getName(), name.substring("interface ".length))
+        case _ => removeKnownPackages(m.getName(), raw)
       }
     }
 
@@ -420,7 +420,7 @@ object KazeClass {
         "java.time.Duration"
       else mType
 
-    private def removeKnownPackages(clsName: String): String = {
+    private def removeKnownPackages(fieldName: String, clsName: String): String = {
 
       @tailrec def removePkg(name: String, remaining: List[String]): String = remaining match {
         case Nil => name
@@ -443,12 +443,16 @@ object KazeClass {
       val clsName2 =
         if (clsName.endsWith("]")) {
           val i = clsName.lastIndexOf('[')
-          val genericTypeName = removeKnownPackages(clsName.substring(i + 1, clsName.length - 1))
+          val genericTypeName = removeKnownPackages(fieldName, clsName.substring(i + 1, clsName.length - 1))
           clsName.take(i) + "[" + genericTypeName + "]"
         } else clsName
 
-      val clsName3 = removePkg(clsName2, knownPackages)
-      removePackageFromClass(clsName3)
+      if (clsName2 == "java.lang.Object") {
+        s"${fieldName}ErasedType"
+      } else {
+        val clsName3 = removePkg(clsName2, knownPackages)
+        removePackageFromClass(clsName3)
+      }
     }
 
     private def skip(m: Field) = skipThose(m.getName)
