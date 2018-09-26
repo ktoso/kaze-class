@@ -162,97 +162,100 @@ class KazeClassSpec extends WordSpec with Matchers {
       assertEquals(expected, rendered)
     }
 
-    "create config helpers" in {
-      val rendered: String = KazeClass.of[Simple].withConfig.render
+    "create config helpers and no Java API" in {
+      val rendered: String = KazeClass.of[Simple].withConfig.withoutJavaApi.render
 
       val expected =
         """import scala.collection.immutable
-          |import scala.collection.JavaConverters._
-          |import scala.compat.java8.OptionConverters._
-          |import akka.util.JavaDurationConverters._
           |
           |final class Simple private(
           |  val number: Int,
+          |  val optionalNumber: Option[optionalNumberErasedType],
           |  val text: String,
-          |  val timeout: scala.concurrent.duration.FiniteDuration
+          |  val timeout: scala.concurrent.duration.FiniteDuration,
+          |  val flag: Boolean,
+          |  val ext: Extendable
           |) {
           |
-          |  /** Java API */
-          |  def getNumber: Int = number
-          |  /** Java API */
-          |  def getText: String = text
-          |  /** Java API */
-          |  def getTimeout: java.time.Duration = timeout.asJava
-          |
           |  def withNumber(value: Int): Simple = copy(number = value)
+          |  def withOptionalNumber(value: optionalNumberErasedType): Simple = copy(optionalNumber = Option(value))
           |  def withText(value: String): Simple = copy(text = value)
           |  /** Scala API */
           |  def withTimeout(value: scala.concurrent.duration.FiniteDuration): Simple = copy(timeout = value)
-          |  /** Java API */
-          |  def withTimeout(value: java.time.Duration): Simple = copy(timeout = value.asScala)
+          |  def withFlag(value: Boolean): Simple = if (flag == value) this else copy(flag = value)
+          |  def withExt(value: Extendable): Simple = copy(ext = value)
           |
           |  private def copy(
           |    number: Int = number,
+          |    optionalNumber: Option[optionalNumberErasedType] = optionalNumber,
           |    text: String = text,
-          |    timeout: scala.concurrent.duration.FiniteDuration = timeout
+          |    timeout: scala.concurrent.duration.FiniteDuration = timeout,
+          |    flag: Boolean = flag,
+          |    ext: Extendable = ext
           |  ): Simple = new Simple(
           |      number = number,
+          |      optionalNumber = optionalNumber,
           |      text = text,
-          |      timeout = timeout
+          |      timeout = timeout,
+          |      flag = flag,
+          |      ext = ext
           |    )
           |
           |  override def toString =
-          |    s```Simple(number=$number,text=$text,timeout=$timeout)```
+          |    s```Simple(number=$number,optionalNumber=$optionalNumber,text=$text,timeout=$timeout,flag=$flag,ext=$ext)```
           |}
           |
           |object Simple {
           |  /** Scala API */
           |  def apply(): Simple = new Simple()
-          |  /** Java API */
-          |  def create(): Simple = apply()
           |  /**
           |   * Reads from the given config.
           |   */
           |  def apply(c: Config): Simple = {
           |    val number = c.getInt("number")
+          |    val optionalNumber = c.get ("optionalNumber")
           |    val text = c.getString("text")
           |    val timeout = c.getDuration("timeout").asScala
+          |    val flag = c.getBoolean("flag")
+          |    val ext = c.get ("ext")
           |    apply(
           |      number,
+          |      optionalNumber,
           |      text,
-          |      timeout
+          |      timeout,
+          |      flag,
+          |      ext
           |    )
           |  }
           |
           |  /* sample config section
           |  {
           |    number = 1234567
+          |    optionalNumber = ???
           |    text = "some text"
           |    timeout = 50 seconds
+          |    flag = false
+          |    ext = ???
           |  }
           |  */
           |
           |  /** Scala API */
           |  def apply(
           |    number: Int,
+          |    optionalNumber: Option[optionalNumberErasedType],
           |    text: String,
-          |    timeout: scala.concurrent.duration.FiniteDuration
+          |    timeout: scala.concurrent.duration.FiniteDuration,
+          |    flag: Boolean,
+          |    ext: Extendable
           |  ): Simple = new Simple(
           |    number,
+          |    optionalNumber,
           |    text,
-          |    timeout
+          |    timeout,
+          |    flag,
+          |    ext
           |  )
           |
-          |  /** Java API */
-          |  def create(
-          |    number: Int,
-          |    text: String,
-          |    timeout: java.time.Duration
-          |  ): Simple = new Simple(
-          |    number,
-          |    text,
-          |    timeout.asScala
-          |  )
           |}
           |""".stripMargin.replaceAll("```", "\"\"\"").split("\n")
 
@@ -262,7 +265,6 @@ class KazeClassSpec extends WordSpec with Matchers {
 
   private def assertEquals(expected: Array[String], rendered: String) = {
     info("Rendered: \n" + rendered)
-
     rendered.split("\n").zipWithIndex.foreach { case (renderedLine, idx) =>
       withClue(s"line=${idx + 1}") {
         renderedLine should ===(expected(idx))
@@ -282,4 +284,4 @@ case class Person(name: String, age: Int, item: Item,
 
 class Item
 
-case class Simple(number: Int, text: String, timeout: FiniteDuration)
+case class Simple(number: Int, optionalNumber: Option[Int], text: String, timeout: FiniteDuration, flag: Boolean, ext: Extendable)
