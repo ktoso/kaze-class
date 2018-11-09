@@ -1,10 +1,9 @@
 package pl.project13.kaze
 
-import scala.annotation.tailrec
-import scala.collection.immutable
-
 object KazeClass {
 
+  import java.util.Locale
+  import scala.annotation.tailrec
   import scala.reflect.ClassTag
 
   def of[T](implicit tag: ClassTag[T]) =
@@ -222,13 +221,27 @@ object KazeClass {
       indent = "  "
       sb.append(s"${indent}override def toString =\n")
       indent += " " * 2
-      sb.append(s"""${indent}s\"\"\"${clazzName}(""")
+      sb.append(
+        s"""$indent"$clazzName(" +
+           |""".stripMargin)
       for {
         m <- fields
         mName = m.getName
-      } sb.append(s"$mName=$$$mName,")
-      sb.delete(sb.length - 1, sb.length)
-      sb.append(s""")\"\"\"""")
+        mType = theType(m)
+      } {
+        if (mType == scalaDuration) {
+          sb.append(
+            s"""${indent}s"$mName=$${$mName.toCoarsest}," +
+               |""".stripMargin)
+        } else
+          sb.append(
+            s"""${indent}s"$mName=$$$mName," +
+               |""".stripMargin)
+      }
+      sb.delete(sb.length - 5, sb.length)
+      sb.append(
+        s"""" +
+           |$indent")"""".stripMargin)
       sb.append("\n")
     }
 
@@ -276,26 +289,22 @@ object KazeClass {
         val mName = m.getName
         val mType = theType(m)
         val jType = theJavaType(mType)
-        val cName = mName // TODO hyphenize?
+        val cName = hyphenize(mName)
         if (mType == "Option[Int]") {
           sb.append(s"""${indent}val $mName = if (c.hasPath("$cName")) Some(c.getInt("$cName")) else None\n""")
         } else if (mType == "Option[String]") {
           sb.append(s"""${indent}val $mName = if (c.hasPath("$cName")) Some(c.getString("${cName}")) else None\n""")
         } else if (mType == s"Option[$scalaDuration]") {
           sb.append(s"""${indent}val $mName = if (c.hasPath("$cName")) Some(c.getDuration("${cName}").${if (useAkkaUtils) "as" else "to"}Scala) else None\n""")
-        } else if (mType == "Int") {
-          sb.append(s"""${indent}val $mName = c.getInt("$cName")\n""")
-        } else if (mType == "String") {
-          sb.append(s"""${indent}val $mName = c.getString("$cName")\n""")
+        } else if (mType == "Int" || mType == "Double" || mType == "String" || mType == "Boolean") {
+          sb.append(s"""${indent}val $mName = c.get$mType("$cName")\n""")
         } else if (mType == scalaDuration) {
           sb.append(s"""${indent}val $mName = c.getDuration("$cName").asScala\n""")
-        } else if (mType == "Boolean") {
-          sb.append(s"""${indent}val $mName = c.getBoolean("$cName")\n""")
         } else {
           sb.append(s"""${indent}val $mName = c.get ("$cName")\n""")
         }
       }
-      sb.append(s"${indent}apply(\n")
+      sb.append(s"${indent}new $clazzName(\n")
       fields.foreach { m =>
         val mName = m.getName
         val mType = theType(m)
@@ -306,17 +315,24 @@ object KazeClass {
       indent = indent.dropRight(2)
       sb.append(s"${indent}}\n")
       sb.append("\n")
+
+      if (genJavaApi) {
+        sb.append(s"${indent}/**\n")
+        sb.append(s"${indent} * Java API: Reads from the given config.\n")
+        sb.append(s"${indent} */\n")
+        sb.append(s"${indent}def create(c: Config): $clazzName = apply(c)\n\n")
+      }
     }
 
     private def renderSampleConfig(sb: StringBuilder): Unit = {
       sb.append(s"${indent}/* sample config section\n")
-      sb.append(s"${indent}{\n")
+      sb.append(s"${indent}${hyphenize(clazzName)} {\n")
       indent = indent + "  "
       fields.foreach { m =>
         val mName = m.getName
         val mType = theType(m)
         val jType = theJavaType(mType)
-        val cName = mName
+        val cName = hyphenize(mName)
         if (mType == "Option[Int]") {
           sb.append(s"""${indent}$cName = 1234567 # optional\n""")
         } else if (mType == "Option[String]") {
@@ -325,6 +341,8 @@ object KazeClass {
           sb.append(s"""${indent}$cName = 50 seconds # optional\n""")
         } else if (mType == "Int") {
           sb.append(s"""${indent}$cName = 1234567\n""")
+        } else if (mType == "Double") {
+          sb.append(s"""${indent}$cName = 1234.567\n""")
         } else if (mType == "String") {
           sb.append(s"""${indent}$cName = "some text"\n""")
         } else if (mType == scalaDuration) {
@@ -467,6 +485,9 @@ object KazeClass {
     }
 
     private def up(s: String): String = s.charAt(0).toUpper + s.tail
+
+    private def hyphenize(s: String): String =
+      s.charAt(0).toLower + s.tail.replaceAll("""([A-Z])""", "\\-$1").toLowerCase(Locale.ENGLISH)
   }
 
 }
