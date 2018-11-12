@@ -487,7 +487,7 @@ object KazeClass {
     private def up(s: String): String = s.charAt(0).toUpper + s.tail
 
     private def hyphenize(s: String): String =
-      s.charAt(0).toLower + s.tail.replaceAll("""([A-Z])""", "\\-$1").toLowerCase(Locale.ENGLISH)
+      s.charAt(0).toLower + s.tail.replaceAll("""([A-Z])""", "\\-$1").toLowerCase(Locale.ROOT)
   }
 
 }
