@@ -84,7 +84,16 @@ class KazeClassSpec extends WordSpec with Matchers {
            |    )
            |
            |  override def toString =
-           |    s```Person(name=$name,age=$age,item=$item,items=$items,list=$list,opt=$opt,timeout=$timeout,flag=$flag)```
+           |    "Person(" +
+           |    s"name=$name," +
+           |    s"age=$age," +
+           |    s"item=$item," +
+           |    s"items=$items," +
+           |    s"list=$list," +
+           |    s"opt=$opt," +
+           |    s"timeout=${timeout.toCoarsest}," +
+           |    s"flag=$flag" +
+           |    ")"
            |
            |  override def equals(other: Any): Boolean = other match {
            |    case that: Person =>
@@ -174,7 +183,8 @@ class KazeClassSpec extends WordSpec with Matchers {
           |  val text: String,
           |  val timeout: scala.concurrent.duration.FiniteDuration,
           |  val flag: Boolean,
-          |  val ext: Extendable
+          |  val ext: Extendable,
+          |  val decimal: Double
           |) {
           |
           |  def withNumber(value: Int): Simple = copy(number = value)
@@ -184,6 +194,7 @@ class KazeClassSpec extends WordSpec with Matchers {
           |  def withTimeout(value: scala.concurrent.duration.FiniteDuration): Simple = copy(timeout = value)
           |  def withFlag(value: Boolean): Simple = if (flag == value) this else copy(flag = value)
           |  def withExt(value: Extendable): Simple = copy(ext = value)
+          |  def withDecimal(value: Double): Simple = copy(decimal = value)
           |
           |  private def copy(
           |    number: Int = number,
@@ -191,18 +202,28 @@ class KazeClassSpec extends WordSpec with Matchers {
           |    text: String = text,
           |    timeout: scala.concurrent.duration.FiniteDuration = timeout,
           |    flag: Boolean = flag,
-          |    ext: Extendable = ext
+          |    ext: Extendable = ext,
+          |    decimal: Double = decimal
           |  ): Simple = new Simple(
           |      number = number,
           |      optionalNumber = optionalNumber,
           |      text = text,
           |      timeout = timeout,
           |      flag = flag,
-          |      ext = ext
+          |      ext = ext,
+          |      decimal = decimal
           |    )
           |
           |  override def toString =
-          |    s```Simple(number=$number,optionalNumber=$optionalNumber,text=$text,timeout=$timeout,flag=$flag,ext=$ext)```
+          |    "Simple(" +
+          |    s"number=$number," +
+          |    s"optionalNumber=$optionalNumber," +
+          |    s"text=$text," +
+          |    s"timeout=${timeout.toCoarsest}," +
+          |    s"flag=$flag," +
+          |    s"ext=$ext," +
+          |    s"decimal=$decimal" +
+          |    ")"
           |}
           |
           |object Simple {
@@ -213,29 +234,32 @@ class KazeClassSpec extends WordSpec with Matchers {
           |   */
           |  def apply(c: Config): Simple = {
           |    val number = c.getInt("number")
-          |    val optionalNumber = c.get ("optionalNumber")
+          |    val optionalNumber = c.get ("optional-number")
           |    val text = c.getString("text")
           |    val timeout = c.getDuration("timeout").asScala
           |    val flag = c.getBoolean("flag")
           |    val ext = c.get ("ext")
-          |    apply(
+          |    val decimal = c.getDouble("decimal")
+          |    new Simple(
           |      number,
           |      optionalNumber,
           |      text,
           |      timeout,
           |      flag,
-          |      ext
+          |      ext,
+          |      decimal
           |    )
           |  }
           |
           |  /* sample config section
-          |  {
+          |  simple {
           |    number = 1234567
-          |    optionalNumber = ???
+          |    optional-number = ???
           |    text = "some text"
           |    timeout = 50 seconds
           |    flag = false
           |    ext = ???
+          |    decimal = 1234.567
           |  }
           |  */
           |
@@ -246,14 +270,16 @@ class KazeClassSpec extends WordSpec with Matchers {
           |    text: String,
           |    timeout: scala.concurrent.duration.FiniteDuration,
           |    flag: Boolean,
-          |    ext: Extendable
+          |    ext: Extendable,
+          |    decimal: Double
           |  ): Simple = new Simple(
           |    number,
           |    optionalNumber,
           |    text,
           |    timeout,
           |    flag,
-          |    ext
+          |    ext,
+          |    decimal
           |  )
           |
           |}
@@ -284,4 +310,4 @@ case class Person(name: String, age: Int, item: Item,
 
 class Item
 
-case class Simple(number: Int, optionalNumber: Option[Int], text: String, timeout: FiniteDuration, flag: Boolean, ext: Extendable)
+case class Simple(number: Int, optionalNumber: Option[Int], text: String, timeout: FiniteDuration, flag: Boolean, ext: Extendable, decimal: Double)
